@@ -10,6 +10,8 @@ import { TickIcon, XIcon } from '../icons';
 import { SourceBubble } from '../bubbles/SourceBubble';
 import { DateTimeToggleTheme } from '@/features/bubble/types';
 import { WorkflowTreeView } from '../treeview/WorkflowTreeView';
+import 'katex/dist/katex.min.css';
+import katex from 'katex';
 
 type Props = {
   message: MessageType;
@@ -54,9 +56,22 @@ export const BotBubble = (props: Props) => {
   // Store a reference to the bot message element for the copyMessageToClipboard function
   const [botMessageElement, setBotMessageElement] = createSignal<HTMLElement | null>(null);
 
+  const renderMath = (text: string) => {
+    return text
+      .replace(/\$\$(.+?)\$\$/g, (_, formula) => {
+        return katex.renderToString(formula, { throwOnError: false, displayMode: true });
+      })
+      .replace(/\$(.+?)\$/g, (_, formula) => {
+        return katex.renderToString(formula, { throwOnError: false, displayMode: false });
+      });
+  };
+
   const setBotMessageRef = (el: HTMLSpanElement) => {
     if (el) {
-      el.innerHTML = Marked.parse(props.message.message);
+      const rawMarkdown = props.message.message;
+      const latexProcessed = renderMath(rawMarkdown);
+
+      el.innerHTML = Marked.parse(latexProcessed);
 
       // Apply textColor to all links, headings, and other markdown elements
       const textColor = props.textColor ?? defaultTextColor;

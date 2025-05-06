@@ -1,5 +1,6 @@
 import { IAction, MessageType } from '../Bot';
 import { DateTimeToggleTheme } from '@/features/bubble/types';
+import 'katex/dist/katex.min.css';
 type Props = {
     message: MessageType;
     chatflowid: string;
