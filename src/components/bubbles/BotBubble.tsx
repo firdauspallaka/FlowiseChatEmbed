@@ -44,7 +44,7 @@ const defaultFeedbackColor = '#3B81F6';
 export const BotBubble = (props: Props) => {
   let botDetailsEl: HTMLDetailsElement | undefined;
 
-  Marked.setOptions({ isNoP: true, sanitize: props.renderHTML !== undefined ? !props.renderHTML : true });
+  Marked.setOptions({ isNoP: true, sanitize: false, gfm: true });
 
   const [rating, setRating] = createSignal('');
   const [feedbackId, setFeedbackId] = createSignal('');
