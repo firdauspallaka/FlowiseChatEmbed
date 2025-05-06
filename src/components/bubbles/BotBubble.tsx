@@ -12,6 +12,7 @@ import { DateTimeToggleTheme } from '@/features/bubble/types';
 import { WorkflowTreeView } from '../treeview/WorkflowTreeView';
 import 'katex/dist/katex.min.css';
 import katex from 'katex';
+import DOMPurify from 'dompurify';
 
 type Props = {
   message: MessageType;
@@ -44,7 +45,7 @@ const defaultFeedbackColor = '#3B81F6';
 export const BotBubble = (props: Props) => {
   let botDetailsEl: HTMLDetailsElement | undefined;
 
-  Marked.setOptions({ isNoP: true, sanitize: false, gfm: true });
+  Marked.setOptions({ isNoP: true, sanitize: false });
 
   const [rating, setRating] = createSignal('');
   const [feedbackId, setFeedbackId] = createSignal('');
@@ -56,37 +57,53 @@ export const BotBubble = (props: Props) => {
   // Store a reference to the bot message element for the copyMessageToClipboard function
   const [botMessageElement, setBotMessageElement] = createSignal<HTMLElement | null>(null);
 
-  const renderMath = (text: string) => {
+  const convertLatexToSpans = (text: string) => {
     return text
-      .replace(/\$\$(.+?)\$\$/g, (_, formula) => {
-        return katex.renderToString(formula, { throwOnError: false, displayMode: true });
+      .replace(/\$\$(.+?)\$\$/gs, (_, formula) => {
+        return `<span class="math block-math">${formula}</span>`;
       })
       .replace(/\$(.+?)\$/g, (_, formula) => {
-        return katex.renderToString(formula, { throwOnError: false, displayMode: false });
+        return `<span class="math">${formula}</span>`;
       });
   };
 
   const setBotMessageRef = (el: HTMLSpanElement) => {
     if (el) {
       const rawMarkdown = props.message.message;
-      const latexProcessed = renderMath(rawMarkdown);
 
-      el.innerHTML = Marked.parse(latexProcessed);
+      // Step 1: Ubah LaTeX ke tag <span class="math">...</span>
+      const latexWrapped = convertLatexToSpans(rawMarkdown);
 
-      // Apply textColor to all links, headings, and other markdown elements
+      // Step 2: Parse markdown jadi HTML
+      const html = Marked.parse(latexWrapped);
+
+      // Step 3: Sanitasi HTML agar aman
+      el.innerHTML = DOMPurify.sanitize(html);
+
+      // Step 4: Render semua formula math di DOM
+      el.querySelectorAll('span.math').forEach((node) => {
+        const formula = node.textContent ?? '';
+        const isBlock = node.classList.contains('block-math');
+        try {
+          katex.render(formula, node as HTMLElement, {
+            displayMode: isBlock,
+            throwOnError: false,
+          });
+        } catch (e) {
+          console.error('KaTeX render error:', e);
+        }
+      });
+
+      // Step 5: Styling tambahan (opsional)
       const textColor = props.textColor ?? defaultTextColor;
       el.querySelectorAll('a, h1, h2, h3, h4, h5, h6, strong, em, blockquote, li, code, pre').forEach((element) => {
         (element as HTMLElement).style.color = textColor;
       });
-
-      // Set target="_blank" for links
       el.querySelectorAll('a').forEach((link) => {
         link.target = '_blank';
       });
 
-      // Store the element ref for the copy function
-      setBotMessageElement(el);
-
+      // Langkah lanjutan (rating, file download dll) tetap seperti sebelumnya
       if (props.message.rating) {
         setRating(props.message.rating);
         if (props.message.rating === 'THUMBS_UP') {
@@ -95,23 +112,24 @@ export const BotBubble = (props: Props) => {
           setThumbsDownColor('#8B0000');
         }
       }
-      if (props.fileAnnotations && props.fileAnnotations.length) {
+
+      if (props.fileAnnotations?.length) {
         for (const annotations of props.fileAnnotations) {
           const button = document.createElement('button');
           button.textContent = annotations.fileName;
           button.className =
             'py-2 px-4 mb-2 justify-center font-semibold text-white focus:outline-none flex items-center disabled:opacity-50 disabled:cursor-not-allowed disabled:brightness-100 transition-all filter hover:brightness-90 active:brightness-75 file-annotation-button';
-          button.addEventListener('click', function () {
-            downloadFile(annotations);
-          });
+          button.addEventListener('click', () => downloadFile(annotations));
           const svgContainer = document.createElement('div');
           svgContainer.className = 'ml-2';
           svgContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-download" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="#ffffff" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>`;
-
           button.appendChild(svgContainer);
           el.appendChild(button);
         }
       }
+
+      // Store ref
+      setBotMessageElement(el);
     }
   };
 
